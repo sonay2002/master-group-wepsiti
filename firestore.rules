@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /siteEvents/{eventId} {
+      // Public site may add only approved analytics events; event data is not publicly readable.
+      allow create: if
+        request.resource.data.keys().hasAll(['kind', 'visitorId', 'createdAt']) &&
+        request.resource.data.keys().hasOnly(['kind', 'visitorId', 'createdAt']) &&
+        request.resource.data.kind in [
+          'page_view',
+          'click_whatsapp',
+          'click_telegram',
+          'click_viber',
+          'click_instagram',
+          'click_phone'
+        ] &&
+        request.resource.data.visitorId is string &&
+        request.resource.data.visitorId.size() >= 8 &&
+        request.resource.data.visitorId.size() <= 64 &&
+        request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
+
+    match /publicStats/pageViews {
+      // Publicly readable aggregate counter; no access to individual visitor events.
+      allow get: if true;
+      allow list, delete: if false;
+      allow create: if request.resource.data.keys().hasOnly(['count']) &&
+                    request.resource.data.count == 1;
+      allow update: if request.resource.data.keys().hasOnly(['count']) &&
+                    request.resource.data.count == resource.data.count + 1;
+    }
+  }
+}
